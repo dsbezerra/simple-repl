@@ -1,4 +1,3 @@
-
 pub struct Lexer<'a> {
     input: &'a str,
     position: usize,
@@ -6,7 +5,8 @@ pub struct Lexer<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum TokenKind {
-    Number,
+    Integer(isize),
+    Decimal(f64),
     Plus,
     Minus,
     Asterisk,
@@ -18,6 +18,7 @@ pub enum TokenKind {
 #[derive(Debug, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
+    pub text: String,
 }
 
 fn is_whitespace(c: &char) -> bool {
@@ -32,7 +33,7 @@ impl<'a> Lexer<'a> {
          }
     }
 
-    fn peek(&mut self, offset: usize) -> Option<char> {
+    fn peek(&self, offset: usize) -> Option<char> {
         let index = self.position + offset;
         if index >= self.input.len() {
             return Some('\0');
@@ -45,8 +46,49 @@ impl<'a> Lexer<'a> {
         self.peek(0).unwrap_or_default()
     }
 
-    fn lex_number(&mut self) -> Token {        
-        Token { kind: TokenKind::Number }
+    fn lex_number(&self) -> Token {
+        let start = self.position;
+
+        let mut len = 0;
+        let mut seen_dot = false;
+        let mut seen_minus = false;
+        while let Some(c) = self.peek(len) {
+            let should_continue = if c.is_digit(10) {
+                true
+            } else if c == '-' {
+                if !seen_minus {
+                    seen_minus = true;
+                    true
+                } else {
+                    false
+                }
+            } else if c == '.' {
+                if !seen_dot {
+                    seen_dot = true;
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !should_continue {
+                break;
+            }
+
+            len += c.len_utf8();
+        }
+
+        let end = start + len;
+
+        let text = self.input[start..end].to_string();
+        let kind = if seen_dot {
+            TokenKind::Decimal(text.parse::<f64>().unwrap())
+        } else {
+            TokenKind::Integer(text.parse::<isize>().unwrap())
+        };
+        Token { kind, text }
     }
 
     fn eat_whitespaces(&mut self) {
@@ -65,16 +107,24 @@ impl<'a> Lexer<'a> {
 
         let char = self.current();
         let token = match char {
-            '\0' => Token { kind: TokenKind::EndOfFile },
-            '+' => Token { kind: TokenKind::Plus },
-            '-' => Token { kind: TokenKind::Minus },
-            '*' => Token { kind: TokenKind::Asterisk },
-            '/' => Token { kind: TokenKind::Slash },
+            '\0' => Token { kind: TokenKind::EndOfFile, text: '\0'.to_string() },
+            '+' => Token { kind: TokenKind::Plus, text: "+".to_string() },
+            '-' => {
+                let next = self.peek(1);
+                if next.is_some() && next.unwrap().is_digit(10) {
+                    self.lex_number()
+                } else {
+                    Token { kind: TokenKind::Minus, text: "-".to_string() }
+                }
+            },
+            '*' => Token { kind: TokenKind::Asterisk, text: "*".to_string() },
+            '/' => Token { kind: TokenKind::Slash, text: "/".to_string() },
             char if char.is_digit(10) => self.lex_number(),
-            _ => Token { kind: TokenKind::BadToken },
+            _ => Token { kind: TokenKind::BadToken, text: String::from(char) },
         };
 
-        self.position += char.len_utf8();
+        self.position += token.text.len();
+
         token
     }
 }
@@ -89,8 +139,8 @@ mod tests {
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
-            Token { kind: TokenKind::Plus },
-            Token { kind: TokenKind::Slash },
+            Token { kind: TokenKind::Plus, text: "+".to_string() },
+            Token { kind: TokenKind::Slash, text: "/".to_string() },
         ];
 
         for token in expected {
@@ -100,14 +150,14 @@ mod tests {
 
     #[test]
     fn next_tok() {
-        let input = "+-*/";
+        let input = "+-*/ 12356";
         let mut lexer = Lexer::new(input);
 
         let expected = vec![
-            Token { kind: TokenKind::Plus }, 
-            Token { kind: TokenKind::Minus }, 
-            Token { kind: TokenKind::Asterisk },
-            Token { kind: TokenKind::Slash },
+            Token { kind: TokenKind::Plus, text: "+".to_string() },
+            Token { kind: TokenKind::Minus, text: "-".to_string() },
+            Token { kind: TokenKind::Asterisk, text: "*".to_string() },
+            Token { kind: TokenKind::Slash, text: "/".to_string() },
         ];
 
         for token in expected {

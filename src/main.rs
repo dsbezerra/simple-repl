@@ -5,7 +5,9 @@ use std::io::{self, Write};
 use crate::lexer::{Lexer, TokenKind};
 
 fn main() {
-    loop {
+    let running = true;
+
+    while running {
         print!("> ");
         io::stdout().flush().unwrap();
 
@@ -24,7 +26,7 @@ fn main() {
                     println!("Invalid token: {:?}", token.kind);
                     break;
                 }
-                _ => println!("Got token kind {:?}", token.kind),
+                _ => println!("Got token {:?}", token),
             }
         }
     }
