@@ -1,13 +1,12 @@
 pub mod lexer;
+pub mod parser;
 
 use std::io::{self, Write};
 
-use crate::lexer::{Lexer, TokenKind};
+use crate::parser::Parser;
 
 fn main() {
-    let running = true;
-
-    while running {
+    loop {
         print!("> ");
         io::stdout().flush().unwrap();
 
@@ -17,17 +16,22 @@ fn main() {
             .read_line(&mut line)
             .expect("Failed to read line");
 
-        let mut lexer = Lexer::new(&line.as_str());
+        match line.trim() {
+            line if line == ":q" || line == "quit" || line == "exit" => {
+                break;
+            },
+            _ => {
+                let mut parser = Parser::new(&line.as_str());
+                let expr = parser.parse();
 
-        loop {
-            let token = lexer.next_tok();
-            match token.kind {
-                TokenKind::EndOfFile | TokenKind::BadToken => {
-                    println!("Invalid token: {:?}", token.kind);
-                    break;
+                if !parser.diagnostics.is_empty() {
+                    for diagnostic in parser.diagnostics {
+                        println!("{}", diagnostic);
+                    }
+                } else {
+                    expr.evaluate()
                 }
-                _ => println!("Got token {:?}", token),
-            }
+            },
         }
     }
 }
